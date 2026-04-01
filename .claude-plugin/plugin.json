@@ -1,0 +1,10 @@
+{
+  "name": "claude-token-tracker",
+  "version": "1.0.0",
+  "description": "Tracks token usage and automatically adjusts Claude's efficiency behavior based on weekly and session limits",
+  "author": {
+    "name": "rhom6us"
+  },
+  "repository": "https://github.com/rhom6us/claude-token-tracker",
+  "license": "MIT"
+}

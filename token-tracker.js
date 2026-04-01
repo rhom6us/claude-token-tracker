@@ -171,6 +171,8 @@ function fetchUsage(credentialsPath) {
 
 function appendLog(logPath, entry) {
   try {
+    const dir = path.dirname(logPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     if (!fs.existsSync(logPath)) {
       fs.writeFileSync(logPath, "timestamp,five_hour_pct,weekly_pct,weekly_sonnet_pct,weekly_opus_pct,tier\n");
     }
@@ -191,8 +193,9 @@ function appendLog(logPath, entry) {
 // --- Main ---
 async function main() {
   const configPath = path.join(__dirname, "config.json");
-  const logPath = path.join(__dirname, "usage-log.csv");
   const claudeDir = path.join(process.env.USERPROFILE || process.env.HOME || "", ".claude");
+  const dataDir = path.join(claudeDir, "token-tracker");
+  const logPath = path.join(dataDir, "usage-log.csv");
   const credentialsPath = path.join(claudeDir, ".credentials.json");
 
   const config = loadConfig(configPath);

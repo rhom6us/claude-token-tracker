@@ -1,0 +1,20 @@
+{
+  "name": "claude-token-tracker",
+  "owner": {
+    "name": "rhom6us"
+  },
+  "plugins": [
+    {
+      "name": "claude-token-tracker",
+      "source": "./",
+      "description": "Tracks token usage and automatically adjusts Claude's efficiency behavior based on weekly and session limits",
+      "version": "1.0.0",
+      "author": {
+        "name": "rhom6us"
+      },
+      "repository": "https://github.com/rhom6us/claude-token-tracker",
+      "license": "MIT",
+      "keywords": ["token", "usage", "budget", "efficiency"]
+    }
+  ]
+}
