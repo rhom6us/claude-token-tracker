@@ -53,6 +53,8 @@ function determineTier(weeklyPercent, fiveHourPercent) {
   return "survival";
 }
 
+// Default tier behaviors. Users can override these in their CLAUDE.md under
+// a "Token Budget Tiers" section — CLAUDE.md instructions take precedence.
 const tierDescriptions = {
   normal: "Standard efficiency. Use best tools for the job. Subagents and exploration are fine when warranted.",
   conservative: "Elevated efficiency. Prefer Sonnet for subagents. Shorter responses. Batch tool calls aggressively. Skip speculative exploration. No insights unless asked.",
@@ -183,7 +185,8 @@ async function main() {
 
   parts.push(
     `EFFICIENCY TIER: ${tier.toUpperCase()}.`,
-    tierDescriptions[tier]
+    `Default behavior for this tier: ${tierDescriptions[tier]}`,
+    `If the user's CLAUDE.md defines custom behaviors for this tier, follow those instead.`
   );
 
   if (effortAdvice) parts.push(effortAdvice);

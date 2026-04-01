@@ -48,18 +48,18 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
-### 3. Define tier behaviors in your CLAUDE.md
+### 3. (Optional) Customize tier behaviors
 
-Add to `~/.claude/CLAUDE.md`:
+The hook injects sensible default behaviors for each tier. To override them, define your own in `~/.claude/CLAUDE.md`:
 
 ```markdown
 ### Token Budget Tiers
-A session-start hook injects a `TOKEN BUDGET` status and `EFFICIENCY TIER` at the start of each session. Follow the tier injected:
-
-- **NORMAL** — Standard efficiency. Use best tools for the job.
-- **CONSERVATIVE** — Prefer Sonnet subagents. Shorter responses. No insights unless asked. Minimize speculative exploration.
-- **SURVIVAL** — Haiku subagents. Bare minimum output. No insights. No speculative reads. Ask before multi-step exploration.
+- **NORMAL** — [your custom behavior]
+- **CONSERVATIVE** — [your custom behavior]
+- **SURVIVAL** — [your custom behavior]
 ```
+
+CLAUDE.md instructions take precedence over the hook's defaults, so you only need to add this if you want different behavior.
 
 ## Configuration
 
@@ -69,8 +69,11 @@ A session-start hook injects a `TOKEN BUDGET` status and `EFFICIENCY TIER` at th
 |-------|-------------|---------|
 | `tiers.normal.maxWeekly` | Max weekly % for NORMAL tier | `50` |
 | `tiers.normal.maxFiveHour` | Max 5-hour % for NORMAL tier | `70` |
+| `tiers.normal.effortLevel` | Recommended effort level for NORMAL | `"high"` |
 | `tiers.conservative.maxWeekly` | Max weekly % for CONSERVATIVE | `80` |
 | `tiers.conservative.maxFiveHour` | Max 5-hour % for CONSERVATIVE | `90` |
+| `tiers.conservative.effortLevel` | Recommended effort level for CONSERVATIVE | `"medium"` |
+| `tiers.survival.effortLevel` | Recommended effort level for SURVIVAL | `"low"` |
 
 ## How it works
 
