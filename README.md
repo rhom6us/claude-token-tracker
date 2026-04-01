@@ -1,20 +1,21 @@
 # claude-token-tracker
 
-A session-start hook for [Claude Code](https://claude.com/claude-code) that tracks weekly token consumption across all projects and dynamically adjusts efficiency behavior to stay within budget.
+A session-start hook for [Claude Code](https://claude.com/claude-code) that fetches your real usage data from Anthropic's API and automatically adjusts Claude's efficiency behavior based on how close you are to your limits.
 
 ## Problem
 
-Claude Code (Max plan) has weekly token limits, but there's no built-in way to track cumulative usage across sessions or automatically throttle behavior as you approach the limit.
+Claude Code (Max plan) has rolling 5-hour and weekly usage limits, but there's no built-in way to automatically throttle behavior as you approach them. You either burn through your quota fast or manually check `/usage` and tell Claude to be more careful.
 
 ## Solution
 
 A Node.js script that runs as a Claude Code `SessionStart` hook:
 
-1. Reads token usage data from Claude Code's session JSONL files (`~/.claude/projects/`)
-2. Calculates weighted weekly consumption with configurable token weights
-3. Projects weekly burn rate based on days elapsed
-4. Injects an efficiency tier (`NORMAL`, `CONSERVATIVE`, or `SURVIVAL`) into the session context
-5. Logs usage to CSV for historical tracking
+1. Reads your OAuth token from `~/.claude/.credentials.json`
+2. Calls Anthropic's usage API to get your real utilization percentages
+3. Injects an efficiency tier (`NORMAL`, `CONSERVATIVE`, or `SURVIVAL`) into the session context
+4. Logs usage to CSV for historical tracking
+
+No token counting, no approximations — it uses the same data that powers the `/usage` dialog.
 
 ## Setup
 
@@ -60,45 +61,43 @@ A session-start hook injects a `TOKEN BUDGET` status and `EFFICIENCY TIER` at th
 - **SURVIVAL** — Haiku subagents. Bare minimum output. No insights. No speculative reads. Ask before multi-step exploration.
 ```
 
-### 4. Calibrate
-
-The default weekly budget is 5M weighted tokens. After a week of use, check `usage-log.csv` and adjust `weeklyBudgetTokens` in `config.json` to match your actual plan limits.
-
 ## Configuration
 
 `config.json`:
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `weeklyBudgetTokens` | Weekly token budget (weighted) | `5000000` |
-| `weekStartDay` | Day the week resets | `"monday"` |
-| `tokenWeights.input` | Weight for input tokens | `1.0` |
-| `tokenWeights.output` | Weight for output tokens | `1.0` |
-| `tokenWeights.cacheCreation` | Weight for cache creation tokens | `1.0` |
-| `tokenWeights.cacheRead` | Weight for cache read tokens | `0.1` |
-| `tiers.normal.maxPercentUsed` | Max actual % for NORMAL tier | `50` |
-| `tiers.normal.maxPercentProjected` | Max projected % for NORMAL | `70` |
-| `tiers.conservative.maxPercentUsed` | Max actual % for CONSERVATIVE | `80` |
-| `tiers.conservative.maxPercentProjected` | Max projected % for CONSERVATIVE | `110` |
-| `claudeDir` | Override `~/.claude` path | `null` (auto-detect) |
+| `tiers.normal.maxWeekly` | Max weekly % for NORMAL tier | `50` |
+| `tiers.normal.maxFiveHour` | Max 5-hour % for NORMAL tier | `70` |
+| `tiers.conservative.maxWeekly` | Max weekly % for CONSERVATIVE | `80` |
+| `tiers.conservative.maxFiveHour` | Max 5-hour % for CONSERVATIVE | `90` |
 
 ## How it works
 
-Claude Code stores session transcripts as JSONL files in `~/.claude/projects/<project>/<session>.jsonl`. Each API response includes a `message.usage` object with token counts. The script:
+Claude Code stores an OAuth token in `~/.claude/.credentials.json`. The script uses this token to call `GET https://api.anthropic.com/api/oauth/usage`, which returns real utilization percentages — the same data that powers the `/usage` dialog:
 
-- Scans all project directories for JSONL files
-- Filters entries to the current week by timestamp
-- Only counts final API responses (identified by `message.usage.iterations` field) to avoid double-counting streaming partials
-- Applies configurable weights — cache reads are weighted at 0.1x by default since Anthropic discounts them ~90%
-- Uses the worse of actual-% and projected-% to determine tier (conservative by design)
+```json
+{
+  "five_hour": { "utilization": 64, "resets_at": "2026-04-01T09:00:00Z" },
+  "seven_day": { "utilization": 2, "resets_at": "2026-04-08T07:00:00Z" },
+  "seven_day_sonnet": { "utilization": 0, "resets_at": "2026-04-02T02:00:00Z" }
+}
+```
+
+The tier is determined by whichever limit is closer to its threshold — if your 5-hour window is at 95% but weekly is only at 10%, you'll still get SURVIVAL until the 5-hour window resets.
 
 ## Output
 
 Each session start appends a row to `usage-log.csv`:
 
 ```
-timestamp,weighted_tokens,percent_used,projected_percent,tier,days_elapsed,sessions,api_calls,raw_input,raw_output,raw_cache_create,raw_cache_read
+timestamp,five_hour_pct,weekly_pct,weekly_sonnet_pct,weekly_opus_pct,tier
 ```
+
+## Requirements
+
+- Claude Code with OAuth login (Max or Pro plan)
+- Node.js (bundled with Claude Code)
 
 ## License
 
