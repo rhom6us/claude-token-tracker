@@ -67,13 +67,13 @@ CLAUDE.md instructions take precedence over the hook's defaults, so you only nee
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `tiers.normal.maxWeekly` | Max weekly % for NORMAL tier | `50` |
-| `tiers.normal.maxFiveHour` | Max 5-hour % for NORMAL tier | `70` |
+| `tiers.normal.maxBurnRatio` | Max burn ratio for NORMAL tier | `1.2` |
 | `tiers.normal.effortLevel` | Recommended effort level for NORMAL | `"high"` |
-| `tiers.conservative.maxWeekly` | Max weekly % for CONSERVATIVE | `80` |
-| `tiers.conservative.maxFiveHour` | Max 5-hour % for CONSERVATIVE | `90` |
+| `tiers.conservative.maxBurnRatio` | Max burn ratio for CONSERVATIVE | `1.8` |
 | `tiers.conservative.effortLevel` | Recommended effort level for CONSERVATIVE | `"medium"` |
 | `tiers.survival.effortLevel` | Recommended effort level for SURVIVAL | `"low"` |
+| `fiveHourThresholds.conservative` | 5-hour % that triggers CONSERVATIVE | `75` |
+| `fiveHourThresholds.survival` | 5-hour % that triggers SURVIVAL | `90` |
 
 ## How it works
 
@@ -87,15 +87,35 @@ Claude Code stores an OAuth token in `~/.claude/.credentials.json`. The script u
 }
 ```
 
-The tier is determined by whichever limit is closer to its threshold — if your 5-hour window is at 95% but weekly is only at 10%, you'll still get SURVIVAL until the 5-hour window resets.
+### Pacing-based tier logic
+
+The tier is determined by comparing your **token consumption rate** to **time passage rate** using a **burn ratio**:
+
+```
+burn ratio = weekly usage % / week progress %
+```
+
+- A ratio of **1.0** means you're using tokens at exactly the rate time is passing — perfectly on pace.
+- A ratio of **0.5** means you've used half as many tokens as time would suggest — well under budget.
+- A ratio of **2.0** means you're burning tokens twice as fast as time is passing — danger zone.
+
+| Burn Ratio | Tier | Meaning |
+|-----------|------|---------|
+| ≤ 1.2 | NORMAL | On pace or under budget |
+| 1.2 – 1.8 | CONSERVATIVE | Ahead of pace |
+| > 1.8 | SURVIVAL | Significantly ahead of pace |
+
+The **5-hour session window** acts as a burst protection override — if your 5-hour utilization hits 75% you'll get CONSERVATIVE, and at 90% you'll get SURVIVAL, regardless of weekly pacing.
 
 ## Output
 
-Each session start appends a row to `usage-log.csv`:
+Each session start appends a row to `~/.claude/token-tracker/usage-log.csv`:
 
 ```
-timestamp,five_hour_pct,weekly_pct,weekly_sonnet_pct,weekly_opus_pct,tier
+timestamp,five_hour_pct,weekly_pct,weekly_sonnet_pct,weekly_opus_pct,week_progress_pct,tier
 ```
+
+Use the `/burndown` skill to visualize usage history as a line graph comparing actual usage against ideal pace.
 
 ## Requirements
 

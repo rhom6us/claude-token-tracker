@@ -10,34 +10,47 @@ If the file doesn't exist or is empty (only headers), tell the user there's no d
 
 If there is data, render a burndown visualization:
 
-1. Parse the CSV. Columns: `timestamp,five_hour_pct,weekly_pct,weekly_sonnet_pct,weekly_opus_pct,tier`
+1. Parse the CSV. Columns: `timestamp,five_hour_pct,weekly_pct,weekly_sonnet_pct,weekly_opus_pct,week_progress_pct,tier`
 
 2. Show a summary table of the last 10 entries:
 ```
-Time              │ Weekly │ 5-Hour │ Tier
-──────────────────┼────────┼────────┼──────────────
-Apr 01 08:30      │    2%  │   64%  │ NORMAL
-Apr 01 10:15      │    5%  │   12%  │ NORMAL
+Time              │ Weekly │ 5-Hour │ Week %  │ Pace  │ Tier
+──────────────────┼────────┼────────┼─────────┼───────┼──────────────
+Apr 01 08:30      │    2%  │   64%  │   12%   │ 0.17  │ NORMAL
+Apr 01 10:15      │    5%  │   12%  │   14%   │ 0.36  │ NORMAL
 ...
 ```
+Where "Pace" = weekly_pct / week_progress_pct (the burn ratio).
 
-3. Draw an ASCII bar chart of weekly usage over time. Use block characters (█▓▒░) to visualize the percentage. Mark tier boundaries with dashed lines:
+3. Draw an ASCII **line graph** showing **actual weekly usage vs ideal pace** over time. The X-axis is week progress (0–100%), the Y-axis is token usage (0–100%). Plot two lines:
+
+   - **Ideal pace** — a diagonal line from (0%, 0%) to (100%, 100%). This is the "budget line" — if you're on this line, you'll use exactly 100% by the end of the week.
+   - **Actual usage** — plot each data point's (week_progress_pct, weekly_pct) as a connected line.
+
+Use different characters for each line: `·` or `─` for ideal pace, `█` or `●` for actual usage. Example:
 
 ```
-Weekly Usage Burndown
-100% ┤
- 80% ┤╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ SURVIVAL
-     │
- 50% ┤╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ CONSERVATIVE
-     │  █
-     │  █  █
-     │  █  █  █     █
-  0% ┤──█──█──█──█──█──█──█──█──█──█──
-       8a 10a 12p  2p  4p  6p  8p 10p
+Token Usage vs Ideal Pace
+100% ┤                                              ·
+     │                                           ·
+ 80% ┤                                        ·
+     │                                     ·
+ 60% ┤                                  ·
+     │                       ●────●  ·
+ 40% ┤                   ●       ·
+     │              ●         ·
+ 20% ┤         ●           ·
+     │    ●             ·
+  0% ┤●───────────────·──────────────────────────────
+     0%       20%       40%       60%       80%     100%
+              ← Week Progress →
+     ● Actual usage    · Ideal pace
 ```
 
-4. If the data spans multiple days, group by day and show daily trends.
+If the actual line is above the ideal line, you're burning faster than time is passing. Below = under budget.
 
-5. End with a one-line status: current tier, weekly %, and when the weekly limit resets (if the most recent entry has that data — it doesn't, so just show what's available).
+4. If the data spans multiple weekly reset cycles, separate them and show the current week only (or the most recent week with data).
+
+5. End with a one-line status showing: current tier, weekly %, week progress %, burn ratio, and a plain-English pacing assessment (e.g., "well under budget", "on pace", "ahead of pace", "significantly ahead of pace").
 
 $ARGUMENTS can optionally be a number of entries to show (default: all). Example: `/burndown 20` shows last 20 entries.

@@ -9,9 +9,13 @@ const https = require("https");
 // --- Defaults ---
 const DEFAULT_CONFIG = {
   tiers: {
-    normal: { maxWeekly: 50, maxFiveHour: 70, effortLevel: "high" },
-    conservative: { maxWeekly: 80, maxFiveHour: 90, effortLevel: "medium" },
+    normal: { maxBurnRatio: 1.2, effortLevel: "high" },
+    conservative: { maxBurnRatio: 1.8, effortLevel: "medium" },
     survival: { effortLevel: "low" },
+  },
+  fiveHourThresholds: {
+    conservative: 75,
+    survival: 90,
   },
 };
 
@@ -25,13 +29,32 @@ const TIER_DESCRIPTIONS = {
 
 // --- Pure functions ---
 
-function determineTier(weeklyPercent, fiveHourPercent, tiers) {
-  if (weeklyPercent <= tiers.normal.maxWeekly && fiveHourPercent <= tiers.normal.maxFiveHour) {
-    return "normal";
-  }
-  if (weeklyPercent <= tiers.conservative.maxWeekly && fiveHourPercent <= tiers.conservative.maxFiveHour) {
-    return "conservative";
-  }
+function getWeekProgress(resetsAt, now) {
+  if (!resetsAt) return null;
+  const reset = new Date(resetsAt);
+  now = now || new Date();
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const weekStart = new Date(reset.getTime() - weekMs);
+  const elapsed = now - weekStart;
+  return Math.max(0, Math.min(100, (elapsed / weekMs) * 100));
+}
+
+function determineTier(weeklyPercent, fiveHourPercent, weekProgress, config) {
+  const tiers = config.tiers || DEFAULT_CONFIG.tiers;
+  const fiveHourThresholds = config.fiveHourThresholds || DEFAULT_CONFIG.fiveHourThresholds;
+
+  // 5-hour window critical override (burst protection)
+  if (fiveHourPercent >= fiveHourThresholds.survival) return "survival";
+  if (fiveHourPercent >= fiveHourThresholds.conservative) return "conservative";
+
+  // Too early to judge weekly pacing
+  if (weeklyPercent < 5 && (weekProgress === null || weekProgress < 5)) return "normal";
+
+  // Weekly pacing: compare usage rate to time rate
+  const burnRatio = weeklyPercent / Math.max(weekProgress ?? 1, 1);
+
+  if (burnRatio <= tiers.normal.maxBurnRatio) return "normal";
+  if (burnRatio <= tiers.conservative.maxBurnRatio) return "conservative";
   return "survival";
 }
 
@@ -50,23 +73,42 @@ function getEffortAdvice(currentEffort, recommendedEffort) {
   return `Recommend switching effort level from "${currentEffort}" to "${recommendedEffort}" — tell the user: 'Consider running /config to set effort to ${recommendedEffort}, or start with --effort ${recommendedEffort}'.`;
 }
 
-function buildOutput(usage, config, currentEffort) {
-  const tiers = { ...DEFAULT_CONFIG.tiers, ...config.tiers };
+function buildOutput(usage, config, currentEffort, now) {
+  const mergedConfig = {
+    tiers: { ...DEFAULT_CONFIG.tiers, ...config.tiers },
+    fiveHourThresholds: { ...DEFAULT_CONFIG.fiveHourThresholds, ...config.fiveHourThresholds },
+  };
+
   const fiveHour = usage.five_hour?.utilization ?? 0;
   const weekly = usage.seven_day?.utilization ?? 0;
   const weeklySonnet = usage.seven_day_sonnet?.utilization ?? null;
   const weeklyOpus = usage.seven_day_opus?.utilization ?? null;
-  const fiveHourReset = formatResetTime(usage.five_hour?.resets_at);
-  const weeklyReset = formatResetTime(usage.seven_day?.resets_at);
+  const fiveHourReset = formatResetTime(usage.five_hour?.resets_at, now);
+  const weeklyReset = formatResetTime(usage.seven_day?.resets_at, now);
+  const weekProgress = getWeekProgress(usage.seven_day?.resets_at, now);
 
-  const tier = determineTier(weekly, fiveHour, tiers);
-  const recommendedEffort = tiers[tier]?.effortLevel || "high";
+  const tier = determineTier(weekly, fiveHour, weekProgress, mergedConfig);
+  const recommendedEffort = mergedConfig.tiers[tier]?.effortLevel || "high";
   const effortAdvice = getEffortAdvice(currentEffort, recommendedEffort);
 
+  // Pacing description
+  let pacing;
+  if (weekProgress !== null && weekProgress >= 5 && weekly >= 5) {
+    const ratio = weekly / Math.max(weekProgress, 1);
+    if (ratio <= 0.8) pacing = "well under budget";
+    else if (ratio <= 1.0) pacing = "on pace";
+    else if (ratio <= 1.2) pacing = "slightly ahead of pace";
+    else if (ratio <= 1.5) pacing = "ahead of pace";
+    else pacing = "significantly ahead of pace";
+  } else if (weekProgress !== null && weekProgress < 5) {
+    pacing = "too early in the week to assess";
+  }
+
   const parts = [
-    `TOKEN BUDGET: Weekly ${weekly}% used (resets in ${weeklyReset}), session ${fiveHour}% used (resets in ${fiveHourReset}).`,
+    `TOKEN BUDGET: Weekly ${weekly}% used, ${weekProgress !== null ? Math.round(weekProgress) + "%" : "?"} through the week (resets in ${weeklyReset}). Session window: ${fiveHour}% (resets in ${fiveHourReset}).`,
   ];
 
+  if (pacing) parts.push(`Pacing: ${pacing}.`);
   if (weeklySonnet !== null) parts.push(`Sonnet-only: ${weeklySonnet}%.`);
   if (weeklyOpus !== null) parts.push(`Opus-only: ${weeklyOpus}%.`);
 
@@ -80,6 +122,8 @@ function buildOutput(usage, config, currentEffort) {
 
   return {
     tier,
+    weekProgress,
+    pacing,
     hookOutput: {
       hookSpecificOutput: {
         hookEventName: "SessionStart",
@@ -91,6 +135,7 @@ function buildOutput(usage, config, currentEffort) {
       weekly,
       weeklySonnet,
       weeklyOpus,
+      weekProgress: weekProgress !== null ? Math.round(weekProgress) : "",
       tier,
     },
   };
@@ -174,7 +219,7 @@ function appendLog(logPath, entry) {
     const dir = path.dirname(logPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     if (!fs.existsSync(logPath)) {
-      fs.writeFileSync(logPath, "timestamp,five_hour_pct,weekly_pct,weekly_sonnet_pct,weekly_opus_pct,tier\n");
+      fs.writeFileSync(logPath, "timestamp,five_hour_pct,weekly_pct,weekly_sonnet_pct,weekly_opus_pct,week_progress_pct,tier\n");
     }
     const logLine = [
       new Date().toISOString(),
@@ -182,6 +227,7 @@ function appendLog(logPath, entry) {
       entry.weekly,
       entry.weeklySonnet ?? "",
       entry.weeklyOpus ?? "",
+      entry.weekProgress,
       entry.tier,
     ].join(",");
     fs.appendFileSync(logPath, logLine + "\n");
@@ -227,6 +273,7 @@ if (require.main === module) {
   module.exports = {
     determineTier,
     formatResetTime,
+    getWeekProgress,
     getEffortAdvice,
     buildOutput,
     getCurrentEffortLevel,

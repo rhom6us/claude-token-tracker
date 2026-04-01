@@ -8,10 +8,10 @@ Session-start hook for Claude Code that fetches real usage data from Anthropic's
 - `usage-log.csv` — Append-only log written each session start for historical tracking.
 
 ## How It Works
-1. Registered as a `SessionStart` hook in `~/.claude/settings.json`
+1. Registered as a `SessionStart` hook via the plugin system
 2. On session start, reads OAuth token from `~/.claude/.credentials.json`
 3. Calls Anthropic's usage API to get real utilization percentages (weekly + 5-hour window)
-4. Determines efficiency tier based on both weekly and 5-hour utilization
+4. Calculates burn ratio (token usage % / week progress %) and determines efficiency tier
 5. Outputs `additionalContext` via hook JSON — Claude Code injects this into the session context
 
 ## Tier Definitions
