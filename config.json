@@ -2,11 +2,16 @@
   "tiers": {
     "normal": {
       "maxWeekly": 50,
-      "maxFiveHour": 70
+      "maxFiveHour": 70,
+      "effortLevel": "high"
     },
     "conservative": {
       "maxWeekly": 80,
-      "maxFiveHour": 90
+      "maxFiveHour": 90,
+      "effortLevel": "medium"
+    },
+    "survival": {
+      "effortLevel": "low"
     }
   }
 }

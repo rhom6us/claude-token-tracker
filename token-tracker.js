@@ -23,6 +23,24 @@ try {
   process.exit(0);
 }
 
+// --- Effort level detection ---
+function getCurrentEffortLevel() {
+  // Env var overrides settings (matches Claude Code behavior)
+  const envEffort = process.env.CLAUDE_CODE_EFFORT_LEVEL;
+  if (envEffort) return envEffort.toLowerCase();
+
+  // Read from settings.json
+  try {
+    const settingsPath = path.join(CLAUDE_DIR, "settings.json");
+    const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    if (settings.effortLevel) return settings.effortLevel.toLowerCase();
+  } catch {
+    // Fall through
+  }
+
+  return "high"; // Claude Code default
+}
+
 // --- Tier logic ---
 function determineTier(weeklyPercent, fiveHourPercent) {
   const t = config.tiers;
@@ -147,6 +165,14 @@ async function main() {
     // Non-fatal
   }
 
+  // --- Effort level advice ---
+  const currentEffort = getCurrentEffortLevel();
+  const recommendedEffort = config.tiers[tier]?.effortLevel || "high";
+  let effortAdvice = "";
+  if (currentEffort !== recommendedEffort) {
+    effortAdvice = ` Recommend switching effort level from "${currentEffort}" to "${recommendedEffort}" — tell the user: 'Consider running /config to set effort to ${recommendedEffort}, or start with --effort ${recommendedEffort}'.`;
+  }
+
   // --- Build context ---
   const parts = [
     `TOKEN BUDGET: Weekly ${weekly}% used (resets in ${weeklyReset}), session ${fiveHour}% used (resets in ${fiveHourReset}).`,
@@ -159,6 +185,8 @@ async function main() {
     `EFFICIENCY TIER: ${tier.toUpperCase()}.`,
     tierDescriptions[tier]
   );
+
+  if (effortAdvice) parts.push(effortAdvice);
 
   const hookOutput = {
     hookSpecificOutput: {
