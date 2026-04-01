@@ -1,0 +1,21 @@
+{
+  "weeklyBudgetTokens": 5000000,
+  "weekStartDay": "monday",
+  "tokenWeights": {
+    "input": 1.0,
+    "output": 1.0,
+    "cacheCreation": 1.0,
+    "cacheRead": 0.1
+  },
+  "tiers": {
+    "normal": {
+      "maxPercentUsed": 50,
+      "maxPercentProjected": 70
+    },
+    "conservative": {
+      "maxPercentUsed": 80,
+      "maxPercentProjected": 110
+    }
+  },
+  "claudeDir": null
+}
