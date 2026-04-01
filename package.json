@@ -1,0 +1,14 @@
+{
+  "name": "claude-token-tracker",
+  "version": "1.0.0",
+  "description": "Session-start hook for Claude Code that tracks usage and adjusts efficiency behavior",
+  "main": "token-tracker.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rhom6us/claude-token-tracker"
+  },
+  "license": "MIT"
+}
